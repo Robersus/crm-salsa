@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Clases de Salsa | Roberto</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0f0f0f;
+      color: white;
+      margin: 0;
+      padding: 0;
+    }
+
+    header {
+      background: #d62828;
+      padding: 20px;
+      text-align: center;
+      font-size: 24px;
+      font-weight: bold;
+    }
+
+    .container {
+      padding: 20px;
+      max-width: 500px;
+      margin: auto;
+    }
+
+    input, select, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+
+    input, select {
+      background: #1c1c1c;
+      color: white;
+    }
+
+    button {
+      background: #0077b6;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    .whatsapp {
+      background: #25D366;
+      margin-top: 15px;
+    }
+
+    .calendar {
+      background: #ffb703;
+      margin-top: 10px;
+    }
+
+    .success {
+      display: none;
+      background: #2a9d8f;
+      padding: 10px;
+      margin-top: 15px;
+      border-radius: 8px;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  Clases de Salsa con Roberto 💃
+</header>
+
+<div class="container">
+
+  <h3>Agenda tu clase</h3>
+
+  <form id="form">
+    <input type="text" id="nombre" placeholder="Tu nombre" required>
+    <input type="tel" id="telefono" placeholder="Tu teléfono" required>
+
+    <select id="nivel">
+      <option value="Principiante">Principiante</option>
+      <option value="Intermedio">Intermedio</option>
+      <option value="Avanzado">Avanzado</option>
+    </select>
+
+    <button type="submit">Agendar Clase</button>
+  </form>
+
+  <div class="success" id="success">
+    ✅ Registro enviado correctamente
+  </div>
+
+  <button class="whatsapp" onclick="irWhatsApp()">
+    💬 Hablar por WhatsApp
+  </button>
+
+  <button class="calendar" onclick="irCalendario()">
+    📅 Ver disponibilidad
+  </button>
+
+</div>
+
+<script>
+  const webhook = "https://villa84.app.n8n.cloud/webhook/alumnos";
+
+  document.getElementById("form").addEventListener("submit", async function(e) {
+    e.preventDefault();
+
+    const data = {
+      nombre: document.getElementById("nombre").value,
+      telefono: document.getElementById("telefono").value,
+      nivel: document.getElementById("nivel").value
+    };
+
+    try {
+      await fetch(webhook, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(data)
+      });
+
+      document.getElementById("success").style.display = "block";
+
+    } catch (error) {
+      alert("Error al enviar datos");
+    }
+  });
+
+  function irWhatsApp() {
+    const numero = "523223058485"; // TU NUMERO
+    const mensaje = "Hola, quiero información sobre clases de salsa";
+    window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`, "_blank");
+  }
+
+  function irCalendario() {
+    window.open("https://calendly.com/TU-USUARIO", "_blank");
+  }
+</script>
+
+</body>
+</html>
