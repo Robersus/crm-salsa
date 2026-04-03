@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clases de Salsa - Roberto Villavicencio</title>
+
+<style>
+:root {
+  --rojo:#e50914;
+  --negro:#0f0f0f;
+  --azul:#1e90ff;
+}
+
+body {
+  margin:0;
+  font-family:Arial, sans-serif;
+  background:var(--negro);
+  color:white;
+}
+
+header {
+  background:black;
+  padding:15px;
+  display:flex;
+  justify-content:space-between;
+}
+
+nav a {
+  color:white;
+  margin:0 10px;
+  text-decoration:none;
+}
+
+.hero {
+  text-align:center;
+  padding:60px 20px;
+}
+
+.btn {
+  background:var(--rojo);
+  padding:12px 20px;
+  border:none;
+  color:white;
+  cursor:pointer;
+  margin:10px;
+}
+
+.section {
+  padding:40px 20px;
+}
+
+.card {
+  background:#1c1c1c;
+  padding:20px;
+  margin:10px;
+  border-radius:10px;
+}
+
+input, select {
+  width:100%;
+  padding:10px;
+  margin:10px 0;
+}
+
+.admin-panel {
+  display:none;
+  background:#222;
+  padding:20px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h2>🔥 Salsa con Roberto</h2>
+  <nav>
+    <a href="#inicio">Inicio</a>
+    <a href="#clases">Clases</a>
+    <a href="#contacto">Contacto</a>
+    <a href="#" onclick="loginAdmin()">Admin</a>
+  </nav>
+</header>
+
+<!-- HERO -->
+<section class="hero" id="inicio">
+  <h1 id="titulo">Aprende Salsa desde Cero 💃</h1>
+  <p id="subtitulo">Clases presenciales y online</p>
+
+  <button class="btn" onclick="scrollToForm()">AGENDA TU CLASE</button>
+  <a id="whatsappBtn" target="_blank">
+    <button class="btn">WhatsApp</button>
+  </a>
+
+  <br><br>
+
+  <iframe width="300" height="180"
+    src="https://www.youtube.com/embed/VIDEO_ID">
+  </iframe>
+</section>
+
+<!-- CLASES -->
+<section class="section" id="clases">
+  <h2>🔥 Membresías</h2>
+
+  <div class="card">
+    <h3>Básico</h3>
+    <p>$800 / mes</p>
+    <button class="btn">Comprar</button>
+  </div>
+
+  <div class="card">
+    <h3>Pro</h3>
+    <p>$1200 / mes</p>
+    <button class="btn">Comprar</button>
+  </div>
+
+  <div class="card">
+    <h3>VIP</h3>
+    <p>$2000 / mes</p>
+    <button class="btn">Comprar</button>
+  </div>
+</section>
+
+<!-- FORMULARIO -->
+<section class="section" id="contacto">
+  <h2>📩 Agenda tu clase</h2>
+
+  <form id="form">
+    <input type="text" placeholder="Nombre" name="nombre" required>
+    <input type="tel" placeholder="Teléfono" name="telefono" required>
+
+    <select name="nivel">
+      <option>Principiante</option>
+      <option>Intermedio</option>
+    </select>
+
+    <button class="btn">Enviar</button>
+  </form>
+</section>
+
+<!-- ADMIN -->
+<section class="admin-panel" id="admin">
+  <h2>⚙️ Panel Admin</h2>
+
+  <input id="editTitulo" placeholder="Editar título">
+  <input id="editSubtitulo" placeholder="Editar subtítulo">
+  <input id="editWhatsapp" placeholder="Número WhatsApp">
+
+  <button class="btn" onclick="guardarCambios()">Guardar</button>
+</section>
+
+<script>
+
+// 🔗 TU WEBHOOK DE N8N
+const WEBHOOK = "PEGA_AQUI_TU_WEBHOOK";
+
+// 📲 CONFIGURACIÓN
+let config = {
+  whatsapp: "523223058485",
+  titulo: "Aprende Salsa desde Cero 💃",
+  subtitulo: "Clases presenciales y online"
+};
+
+// Cargar config guardada
+if(localStorage.getItem("config")){
+  config = JSON.parse(localStorage.getItem("config"));
+}
+
+document.getElementById("titulo").innerText = config.titulo;
+document.getElementById("subtitulo").innerText = config.subtitulo;
+document.getElementById("whatsappBtn").href =
+`https://wa.me/${config.whatsapp}?text=Quiero%20informes`;
+
+// FORMULARIO
+document.getElementById("form").addEventListener("submit", async(e)=>{
+  e.preventDefault();
+
+  const data = Object.fromEntries(new FormData(e.target));
+
+  await fetch(WEBHOOK,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(data)
+  });
+
+  alert("🔥 Datos enviados, revisa tu WhatsApp");
+});
+
+// SCROLL
+function scrollToForm(){
+  document.getElementById("contacto").scrollIntoView();
+}
+
+// LOGIN ADMIN
+function loginAdmin(){
+  const pass = prompt("Contraseña admin:");
+  if(pass === "1234"){
+    document.getElementById("admin").style.display="block";
+  }
+}
+
+// GUARDAR CAMBIOS
+function guardarCambios(){
+  config.titulo = document.getElementById("editTitulo").value;
+  config.subtitulo = document.getElementById("editSubtitulo").value;
+  config.whatsapp = document.getElementById("editWhatsapp").value;
+
+  localStorage.setItem("config", JSON.stringify(config));
+  location.reload();
+}
+
+</script>
+
+</body>
+</html>
