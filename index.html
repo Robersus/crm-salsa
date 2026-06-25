@@ -1,4 +1,4 @@
-from pathlib import Path
+
 
 html = r'''<!DOCTYPE html>
 <html lang="es">
@@ -478,9 +478,3 @@ function scrollToSection(id){
 
 </body>
 </html>
-'''
-
-path = Path("/mnt/data/infinity_ai_lab.html")
-path.write_text(html, encoding="utf-8")
-
-print(f"Archivo generado: {path}")
