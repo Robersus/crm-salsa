@@ -294,7 +294,7 @@
     font-size: 12px;
     font-weight: 600;
   }
-  .badge-sucursal { background: var(--accent-soft); color: var(--accent); }
+  .badge-horario { background: var(--accent-soft); color: var(--accent); }
   .badge-success { background: var(--success-soft); color: var(--success); }
   .badge-warning { background: var(--warning-soft); color: var(--warning); }
   .badge-danger { background: var(--danger-soft); color: var(--danger); }
@@ -319,6 +319,36 @@
     color: var(--text-muted);
   }
   .empty-state .big { font-size: 40px; margin-bottom: 10px; }
+
+  /* ---------- Grupos por horario ---------- */
+  .horario-group { border-bottom: 1px solid var(--border); }
+  .horario-group:last-child { border-bottom: none; }
+  .horario-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 22px;
+    background: var(--bg-subtle);
+  }
+  .horario-group-header h3 { margin: 0; font-size: 14px; }
+  .horario-group-header .count {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  /* Contenedor con scroll horizontal: evita que la tabla se corte en móvil */
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table-scroll table { min-width: 720px; }
+
+  @media (max-width: 860px) {
+    thead th, tbody td { padding: 12px 16px; }
+  }
 
   /* ---------- Modal ---------- */
   .modal-overlay {
@@ -424,7 +454,7 @@
     <div class="nav-group">
       <div class="nav-label">Principal</div>
       <div class="nav-item active"><span class="icon">👥</span> Alumnos</div>
-      <div class="nav-item"><span class="icon">🏫</span> Sucursales</div>
+      <div class="nav-item" onclick="document.getElementById('groups-container').scrollIntoView({behavior:'smooth'})"><span class="icon">📅</span> Horarios</div>
       <div class="nav-item"><span class="icon">📈</span> Reportes</div>
     </div>
 
@@ -445,7 +475,7 @@
     <div class="topbar">
       <div>
         <h1>Alumnos</h1>
-        <p>Administra los alumnos de tus 4 sucursales en un solo lugar.</p>
+        <p>Administra los alumnos organizados por horario de clase.</p>
       </div>
       <button class="btn btn-primary" id="btn-nuevo" onclick="openModal()">
         <span>+</span> Nuevo alumno
@@ -462,7 +492,7 @@
       <div class="stat-card">
         <div class="label">Total alumnos</div>
         <div class="value" id="stat-total">0</div>
-        <div class="sub">En las 4 sucursales</div>
+        <div class="sub">Organizados por horario</div>
       </div>
       <div class="stat-card">
         <div class="label">Al corriente</div>
@@ -486,8 +516,8 @@
         <h2>Listado de alumnos</h2>
         <div class="filters">
           <input class="input" id="search-input" placeholder="Buscar por nombre..." oninput="renderTable()">
-          <select class="input" id="filter-sucursal" onchange="renderTable()">
-            <option value="">Todas las sucursales</option>
+          <select class="input" id="filter-horario" onchange="renderTable()">
+            <option value="">Todos los horarios</option>
           </select>
           <select class="input" id="filter-estado" onchange="renderTable()">
             <option value="">Todos los estados</option>
@@ -497,26 +527,11 @@
           </select>
         </div>
       </div>
-      <div id="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Alumno</th>
-              <th>Sucursal</th>
-              <th>Nivel</th>
-              <th>Contacto</th>
-              <th>Inscripción</th>
-              <th>Pago</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="table-body"></tbody>
-        </table>
-        <div class="empty-state" id="empty-state" style="display:none;">
-          <div class="big">🥂</div>
-          <div>Aún no hay alumnos registrados.</div>
-          <div>Da clic en "Nuevo alumno" para agregar el primero.</div>
-        </div>
+      <div id="groups-container"></div>
+      <div class="empty-state" id="empty-state" style="display:none;">
+        <div class="big">🥂</div>
+        <div>Aún no hay alumnos registrados.</div>
+        <div>Da clic en "Nuevo alumno" para agregar el primero.</div>
       </div>
     </div>
   </main>
@@ -547,8 +562,8 @@
       </div>
       <div class="field-row">
         <div class="field">
-          <label>Sucursal / Escuela *</label>
-          <select class="input" id="f-sucursal"></select>
+          <label>Horario de clase</label>
+          <select class="input" id="f-horario"></select>
         </div>
         <div class="field">
           <label>Nivel / Grupo</label>
@@ -591,10 +606,11 @@
   // Respaldo (llave publicable nueva) por si la anterior fuera rechazada.
   const SUPABASE_KEY_FALLBACK = "sb_publishable_GrEokxaveURUp2NQGhcZ3w_h69fBop6";
 
-  // Sucursales de respaldo si la base no responde (solo para poder ver la UI).
-  const SUCURSALES_FALLBACK = [
-    { id: 1, nombre: 'Vallarta' }, { id: 2, nombre: 'Guadalajara' },
-    { id: 3, nombre: 'Arizapan' }, { id: 4, nombre: 'Colima' }
+  // Horarios de respaldo si la base no responde (solo para poder ver la UI).
+  const HORARIOS_FALLBACK = [
+    { id: 1, nombre: 'Lunes a Viernes · 4:00 – 5:00 pm (6 a 10 años)' },
+    { id: 2, nombre: 'Lunes a Viernes · 5:00 – 6:00 pm (11 a 14 años)' },
+    { id: 3, nombre: 'Lunes a Viernes · 7:30 – 9:00 pm (15+ años)' }
   ];
 
   // CDNs de respaldo: se intentan en orden hasta que uno cargue.
@@ -605,7 +621,7 @@
   ];
 
   let sb = null;
-  let sucursales = [];
+  let horarios = [];
   let alumnos = [];
 
   // ---------------------------------------------------------------
@@ -692,7 +708,7 @@
     lineas.push('Origen de la página: ' + location.origin + ' (' + location.protocol + ')');
     lineas.push('Librería supabase-js cargada: ' + (window.supabase ? 'sí' : 'no'));
     try {
-      const r = await fetchSeguro(SUPABASE_URL + '/rest/v1/sucursales?select=*', {
+      const r = await fetchSeguro(SUPABASE_URL + '/rest/v1/horarios?select=*', {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
       });
       lineas.push('Respuesta HTTP: ' + r.status + ' ' + r.statusText);
@@ -719,30 +735,31 @@
   }
 
   // ---------- Load data ----------
-  async function loadSucursales() {
-    const { data, error } = await sb.from('sucursales').select('*').order('id');
+  async function loadHorarios() {
+    const { data, error } = await sb.from('horarios').select('*').order('id');
     if (error) {
-      console.error('Error sucursales:', errText(error), error);
-      sucursales = SUCURSALES_FALLBACK;
-      fillSucursalSelects();
-      throw new Error('No se pudieron cargar las sucursales → ' + errText(error));
+      console.error('Error horarios:', errText(error), error);
+      horarios = HORARIOS_FALLBACK;
+      fillHorarioSelects();
+      throw new Error('No se pudieron cargar los horarios → ' + errText(error));
     }
-    sucursales = (data && data.length) ? data : SUCURSALES_FALLBACK;
-    fillSucursalSelects();
+    horarios = (data && data.length) ? data : HORARIOS_FALLBACK;
+    fillHorarioSelects();
   }
 
-  function fillSucursalSelects() {
-    const filterSel = document.getElementById('filter-sucursal');
-    const formSel = document.getElementById('f-sucursal');
-    filterSel.innerHTML = '<option value="">Todas las sucursales</option>' +
-      sucursales.map(s => `<option value="${s.id}">${s.nombre}</option>`).join('');
-    formSel.innerHTML = sucursales.map(s => `<option value="${s.id}">${s.nombre}</option>`).join('');
+  function fillHorarioSelects() {
+    const filterSel = document.getElementById('filter-horario');
+    const formSel = document.getElementById('f-horario');
+    filterSel.innerHTML = '<option value="">Todos los horarios</option>' +
+      horarios.map(h => `<option value="${h.id}">${h.nombre}</option>`).join('');
+    formSel.innerHTML = '<option value="">Sin horario asignado</option>' +
+      horarios.map(h => `<option value="${h.id}">${h.nombre}</option>`).join('');
   }
 
   async function loadAlumnos() {
     const { data, error } = await sb
       .from('alumnos')
-      .select('*, sucursales(nombre)')
+      .select('*, horarios(nombre)')
       .order('created_at', { ascending: false });
     if (error) {
       console.error('Error alumnos:', errText(error), error);
@@ -795,7 +812,7 @@
     for (const key of [SUPABASE_ANON_KEY, SUPABASE_KEY_FALLBACK]) {
       try {
         sb = window.supabase.createClient(SUPABASE_URL, key, OPCIONES_CLIENTE);
-        await loadSucursales();
+        await loadHorarios();
         await loadAlumnos();
         setConnStatus(true, 'Conectado a Supabase');
         return;
@@ -832,51 +849,92 @@
     return (name || '?').split(' ').filter(Boolean).slice(0, 2).map(n => n[0].toUpperCase()).join('');
   }
 
+  function tablaAlumnos(lista) {
+    return `
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Alumno</th>
+              <th>Nivel</th>
+              <th>Contacto</th>
+              <th>Inscripción</th>
+              <th>Pago</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${lista.map(a => `
+              <tr>
+                <td>
+                  <div class="student-name">
+                    <div class="avatar">${initials(a.nombre_completo)}</div>
+                    ${a.nombre_completo || '-'}
+                  </div>
+                </td>
+                <td>${a.nivel || '-'}</td>
+                <td>
+                  <div style="font-size:13px;">${a.telefono || '-'}</div>
+                  <div style="font-size:12px; color:var(--text-muted);">${a.email || ''}</div>
+                </td>
+                <td>${a.fecha_inscripcion || '-'}</td>
+                <td>${estadoBadge(a.estado_pago)}</td>
+                <td>
+                  <div class="row-actions">
+                    <button class="icon-btn" onclick="editAlumno('${a.id}')" title="Editar">✏️</button>
+                    <button class="icon-btn danger" onclick="deleteAlumno('${a.id}')" title="Eliminar">🗑️</button>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
   function renderTable() {
     const search = document.getElementById('search-input').value.toLowerCase();
-    const fSucursal = document.getElementById('filter-sucursal').value;
+    const fHorario = document.getElementById('filter-horario').value;
     const fEstado = document.getElementById('filter-estado').value;
 
     let filtered = alumnos.filter(a => {
       const matchSearch = !search || (a.nombre_completo || '').toLowerCase().includes(search);
-      const matchSucursal = !fSucursal || String(a.sucursal_id) === String(fSucursal);
+      const matchHorario = !fHorario || String(a.horario_id) === String(fHorario);
       const matchEstado = !fEstado || a.estado_pago === fEstado;
-      return matchSearch && matchSucursal && matchEstado;
+      return matchSearch && matchHorario && matchEstado;
     });
 
-    const tbody = document.getElementById('table-body');
+    const container = document.getElementById('groups-container');
     const empty = document.getElementById('empty-state');
 
     if (filtered.length === 0) {
-      tbody.innerHTML = '';
+      container.innerHTML = '';
       empty.style.display = 'block';
       return;
     }
     empty.style.display = 'none';
 
-    tbody.innerHTML = filtered.map(a => `
-      <tr>
-        <td>
-          <div class="student-name">
-            <div class="avatar">${initials(a.nombre_completo)}</div>
-            ${a.nombre_completo || '-'}
-          </div>
-        </td>
-        <td><span class="badge badge-sucursal">${a.sucursales ? a.sucursales.nombre : '-'}</span></td>
-        <td>${a.nivel || '-'}</td>
-        <td>
-          <div style="font-size:13px;">${a.telefono || '-'}</div>
-          <div style="font-size:12px; color:var(--text-muted);">${a.email || ''}</div>
-        </td>
-        <td>${a.fecha_inscripcion || '-'}</td>
-        <td>${estadoBadge(a.estado_pago)}</td>
-        <td>
-          <div class="row-actions">
-            <button class="icon-btn" onclick="editAlumno('${a.id}')" title="Editar">✏️</button>
-            <button class="icon-btn danger" onclick="deleteAlumno('${a.id}')" title="Eliminar">🗑️</button>
-          </div>
-        </td>
-      </tr>
+    // Agrupar por horario, en el orden en que vienen los horarios cargados.
+    const grupos = horarios.map(h => ({
+      id: h.id,
+      nombre: h.nombre,
+      lista: filtered.filter(a => String(a.horario_id) === String(h.id))
+    })).filter(g => g.lista.length > 0);
+
+    const sinHorario = filtered.filter(a => !a.horario_id);
+    if (sinHorario.length > 0) {
+      grupos.push({ id: null, nombre: 'Sin horario asignado', lista: sinHorario });
+    }
+
+    container.innerHTML = grupos.map(g => `
+      <div class="horario-group">
+        <div class="horario-group-header">
+          <h3>${g.nombre}</h3>
+          <span class="count">${g.lista.length} alumno${g.lista.length === 1 ? '' : 's'}</span>
+        </div>
+        ${tablaAlumnos(g.lista)}
+      </div>
     `).join('');
   }
 
@@ -886,16 +944,12 @@
       toast('Aún no hay conexión con la base de datos. Recarga la página.', 'error');
       return;
     }
-    if (sucursales.length === 0) {
-      toast('No se cargaron las sucursales. Recarga la página.', 'error');
-      return;
-    }
     document.getElementById('modal-title').textContent = alumno ? 'Editar alumno' : 'Nuevo alumno';
     document.getElementById('alumno-id').value = alumno ? alumno.id : '';
     document.getElementById('f-nombre').value = alumno ? alumno.nombre_completo : '';
     document.getElementById('f-telefono').value = alumno ? (alumno.telefono || '') : '';
     document.getElementById('f-email').value = alumno ? (alumno.email || '') : '';
-    document.getElementById('f-sucursal').value = alumno ? alumno.sucursal_id : (sucursales[0] ? sucursales[0].id : '');
+    document.getElementById('f-horario').value = alumno ? (alumno.horario_id || '') : '';
     document.getElementById('f-nivel').value = alumno ? (alumno.nivel || 'Principiante') : 'Principiante';
     document.getElementById('f-estado').value = alumno ? alumno.estado_pago : 'al_corriente';
     document.getElementById('f-fecha').value = alumno ? alumno.fecha_inscripcion : new Date().toISOString().slice(0, 10);
@@ -915,16 +969,15 @@
     if (!sb) { toast('Sin conexión a la base de datos', 'error'); return; }
     const id = document.getElementById('alumno-id').value;
     const nombre = document.getElementById('f-nombre').value.trim();
-    const sucursal_id = document.getElementById('f-sucursal').value;
+    const horario_id = document.getElementById('f-horario').value;
 
     if (!nombre) { toast('El nombre completo es obligatorio', 'error'); return; }
-    if (!sucursal_id) { toast('Selecciona una sucursal', 'error'); return; }
 
     const payload = {
       nombre_completo: nombre,
       telefono: document.getElementById('f-telefono').value.trim() || null,
       email: document.getElementById('f-email').value.trim() || null,
-      sucursal_id: Number(sucursal_id),
+      horario_id: horario_id ? Number(horario_id) : null,
       nivel: document.getElementById('f-nivel').value,
       estado_pago: document.getElementById('f-estado').value,
       fecha_inscripcion: document.getElementById('f-fecha').value || null,
