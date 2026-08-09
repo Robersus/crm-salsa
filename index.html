@@ -528,12 +528,12 @@
     </div>
     <div class="auth-gate-error" id="login-error" style="display:none;"></div>
     <div class="field">
-      <label>Correo</label>
-      <input class="input" id="login-email" type="email" placeholder="tucorreo@ejemplo.com" onkeydown="if(event.key==='Enter') doLogin()">
+      <label>Usuario</label>
+      <input class="input" id="login-email" type="text" autocomplete="username" placeholder="Roberto" onkeydown="if(event.key==='Enter') doLogin()">
     </div>
     <div class="field">
       <label>Contraseña</label>
-      <input class="input" id="login-password" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter') doLogin()">
+      <input class="input" id="login-password" type="password" autocomplete="current-password" placeholder="••••" onkeydown="if(event.key==='Enter') doLogin()">
     </div>
     <button class="btn btn-primary" id="login-submit-btn" style="justify-content:center;" onclick="doLogin()">Entrar</button>
     <div class="auth-gate-status">
@@ -724,6 +724,20 @@
   // Respaldo (llave publicable nueva) por si la anterior fuera rechazada.
   const SUPABASE_KEY_FALLBACK = "sb_publishable_GrEokxaveURUp2NQGhcZ3w_h69fBop6";
 
+  // Supabase Auth exige un correo válido por dentro; el usuario solo ve
+  // y escribe un nombre de usuario simple (ej. "Roberto"), que aquí se
+  // traduce al correo técnico real antes de mandarlo al servidor.
+  const LOGIN_USER_DOMAIN = "@alumnosfortaleza.local";
+  function usuarioAEmail(usuario) {
+    const u = usuario.trim();
+    return u.includes('@') ? u : (u.toLowerCase() + LOGIN_USER_DOMAIN);
+  }
+  function nombreDeUsuario(user) {
+    if (!user || !user.email) return '';
+    const local = user.email.split('@')[0];
+    return local.charAt(0).toUpperCase() + local.slice(1);
+  }
+
   // Horarios de respaldo si la base no responde (solo para poder ver la UI).
   const HORARIOS_FALLBACK = [
     { id: 1, nombre: 'Lunes a Viernes · 4:00 – 5:00 pm (6 a 10 años)' },
@@ -889,7 +903,7 @@
 
   function updateAuthUI() {
     const text = document.getElementById('auth-text');
-    if (text) text.textContent = currentUser ? ('🔓 ' + currentUser.email) : '👤';
+    if (text) text.textContent = currentUser ? ('🔓 ' + nombreDeUsuario(currentUser)) : '👤';
   }
 
   function mostrarErrorLogin(msg) {
@@ -910,9 +924,10 @@
   async function doLogin() {
     mostrarErrorLogin('');
     if (!sb) { mostrarErrorLogin('Sin conexión a la base de datos. Recarga la página.'); return; }
-    const email = document.getElementById('login-email').value.trim();
+    const usuario = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
-    if (!email || !password) { mostrarErrorLogin('Ingresa correo y contraseña'); return; }
+    if (!usuario || !password) { mostrarErrorLogin('Ingresa usuario y contraseña'); return; }
+    const email = usuarioAEmail(usuario);
 
     const btn = document.getElementById('login-submit-btn');
     btn.disabled = true;
