@@ -337,6 +337,7 @@
   tbody td { padding: 14px 22px; border-bottom: 1px solid var(--border); vertical-align: middle; }
   tbody tr:last-child td { border-bottom: none; }
   tbody tr:hover { background: var(--bg-subtle); }
+  tbody tr { -webkit-touch-callout: none; }
 
   .student-name { display: flex; align-items: center; gap: 10px; font-weight: 600; }
   .avatar {
@@ -681,24 +682,24 @@
       </div>
       <div class="field-row">
         <div class="field">
-          <label>Estado de pago</label>
-          <select class="input" id="f-estado">
-            <option value="al_corriente">Al corriente</option>
-            <option value="pendiente">Pendiente</option>
-            <option value="vencido">Vencido</option>
-          </select>
-        </div>
-        <div class="field">
           <label>Fecha de inscripción</label>
           <input class="input" type="date" id="f-fecha">
         </div>
-      </div>
-      <div class="field-row">
         <div class="field">
           <label>Plan de pago</label>
           <select class="input" id="f-periodo">
             <option value="1_semana">1 semana</option>
             <option value="4_semanas">4 semanas</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row" id="campos-pago-edicion">
+        <div class="field">
+          <label>Estado de pago</label>
+          <select class="input" id="f-estado">
+            <option value="al_corriente">Al corriente</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="vencido">Vencido</option>
           </select>
         </div>
         <div class="field">
@@ -710,6 +711,20 @@
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="saveAlumno()">Guardar alumno</button>
+    </div>
+  </div>
+</div>
+
+<!-- MENÚ CONTEXTUAL (mantener presionado un alumno en pantallas táctiles) -->
+<div class="modal-overlay" id="context-menu-overlay">
+  <div class="modal" style="max-width:320px;">
+    <div class="modal-header">
+      <h3 id="context-menu-title">Alumno</h3>
+      <button class="close-x" onclick="closeContextMenu()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <button class="btn btn-secondary" style="justify-content:center;" onclick="contextMenuEditar()">✏️ Editar alumno</button>
+      <button class="btn btn-secondary" style="justify-content:center; color:var(--danger); border-color:var(--danger);" onclick="contextMenuEliminar()">🗑️ Eliminar alumno</button>
     </div>
   </div>
 </div>
@@ -740,6 +755,7 @@
 
   // Horarios de respaldo si la base no responde (solo para poder ver la UI).
   const HORARIOS_FALLBACK = [
+    { id: 4, nombre: 'Lunes a Viernes · 8:15 – 9:30 am' },
     { id: 1, nombre: 'Lunes a Viernes · 4:00 – 5:00 pm (6 a 10 años)' },
     { id: 2, nombre: 'Lunes a Viernes · 5:00 – 6:00 pm (11 a 14 años)' },
     { id: 3, nombre: 'Lunes a Viernes · 7:30 – 9:00 pm (15+ años)' }
@@ -1223,7 +1239,7 @@
             ${lista.map(a => {
               const prox = proximoPagoInfo(a);
               return `
-              <tr>
+              <tr data-id="${a.id}">
                 <td>
                   <div class="student-name">
                     <div class="avatar">${initials(a.nombre_completo)}</div>
@@ -1315,6 +1331,9 @@
     document.getElementById('f-fecha').value = alumno ? alumno.fecha_inscripcion : new Date().toISOString().slice(0, 10);
     document.getElementById('f-periodo').value = alumno ? (alumno.periodo_pago || '4_semanas') : '4_semanas';
     document.getElementById('f-fecha-pago').value = alumno ? (alumno.fecha_ultimo_pago || new Date().toISOString().slice(0, 10)) : new Date().toISOString().slice(0, 10);
+    // Al dar de alta un alumno nuevo no se pregunta por su estado de pago:
+    // se asume al corriente desde hoy. Al editar sí se puede ajustar.
+    document.getElementById('campos-pago-edicion').style.display = alumno ? 'grid' : 'none';
     document.getElementById('modal-overlay').classList.add('open');
   }
 
@@ -1326,6 +1345,82 @@
     const a = alumnos.find(x => x.id === id);
     if (a) openModal(a);
   }
+
+  // ---------- Menú contextual (mantener presionado en pantallas táctiles) ----------
+  let contextMenuAlumnoId = null;
+
+  function openContextMenu(id) {
+    const a = alumnos.find(x => x.id === id);
+    if (!a) return;
+    contextMenuAlumnoId = id;
+    document.getElementById('context-menu-title').textContent = a.nombre_completo || 'Alumno';
+    document.getElementById('context-menu-overlay').classList.add('open');
+  }
+
+  function closeContextMenu() {
+    document.getElementById('context-menu-overlay').classList.remove('open');
+    contextMenuAlumnoId = null;
+  }
+
+  function contextMenuEditar() {
+    const id = contextMenuAlumnoId;
+    closeContextMenu();
+    if (id) editAlumno(id);
+  }
+
+  function contextMenuEliminar() {
+    const id = contextMenuAlumnoId;
+    closeContextMenu();
+    if (id) deleteAlumno(id);
+  }
+
+  document.getElementById('context-menu-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'context-menu-overlay') closeContextMenu();
+  });
+
+  // Mantener presionada una fila (touch) durante ~550ms abre el menú
+  // contextual, en vez de tener que ir a buscar los botones de la tabla.
+  (function initLongPress() {
+    const container = document.getElementById('groups-container');
+    const UMBRAL_MS = 550;
+    const TOLERANCIA_PX = 10;
+    let temporizador = null;
+    let filaId = null;
+    let inicioX = 0, inicioY = 0;
+
+    function cancelar() {
+      clearTimeout(temporizador);
+      temporizador = null;
+      filaId = null;
+    }
+
+    container.addEventListener('touchstart', (e) => {
+      const tr = e.target.closest('tr[data-id]');
+      if (!tr) return;
+      filaId = tr.dataset.id;
+      const t = e.touches[0];
+      inicioX = t.clientX;
+      inicioY = t.clientY;
+      temporizador = setTimeout(() => {
+        if (filaId) {
+          if (navigator.vibrate) navigator.vibrate(15);
+          openContextMenu(filaId);
+        }
+        temporizador = null;
+      }, UMBRAL_MS);
+    }, { passive: true });
+
+    container.addEventListener('touchmove', (e) => {
+      if (!temporizador) return;
+      const t = e.touches[0];
+      if (Math.abs(t.clientX - inicioX) > TOLERANCIA_PX || Math.abs(t.clientY - inicioY) > TOLERANCIA_PX) {
+        cancelar();
+      }
+    }, { passive: true });
+
+    container.addEventListener('touchend', cancelar);
+    container.addEventListener('touchcancel', cancelar);
+  })();
 
   async function saveAlumno() {
     if (!sb) { toast('Sin conexión a la base de datos', 'error'); return; }
