@@ -169,7 +169,7 @@
     font-size: 12px;
     color: var(--text-muted);
   }
-  .auth-status span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .auth-status span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 42vw; }
   .auth-status button {
     border: none;
     background: none;
@@ -207,6 +207,8 @@
 
   .topbar h1 { margin: 0 0 4px; font-size: 24px; }
   .topbar p { margin: 0; color: var(--text-muted); font-size: 14px; }
+
+  .topbar-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
   .btn {
     border: none;
@@ -486,10 +488,6 @@
         <span id="theme-label">☀️ Modo claro</span>
         <div class="switch" id="theme-switch" onclick="toggleTheme()"></div>
       </div>
-      <div class="auth-status" id="auth-status">
-        <span id="auth-text">👤 Invitado</span>
-        <button id="auth-btn" onclick="openLoginModal()">Iniciar sesión</button>
-      </div>
       <div class="conn-status">
         <span class="dot" id="conn-dot"></span>
         <span id="conn-text">Conectando a Supabase…</span>
@@ -504,9 +502,15 @@
         <h1>Alumnos</h1>
         <p>Administra los alumnos organizados por horario de clase.</p>
       </div>
-      <button class="btn btn-primary" id="btn-nuevo" onclick="openModal()">
-        <span>+</span> Nuevo alumno
-      </button>
+      <div class="topbar-actions">
+        <div class="auth-status" id="auth-status">
+          <span id="auth-text">👤 Invitado</span>
+          <button id="auth-btn" onclick="openLoginModal()">Iniciar sesión</button>
+        </div>
+        <button class="btn btn-primary" id="btn-nuevo" onclick="openModal()">
+          <span>+</span> Nuevo alumno
+        </button>
+      </div>
     </div>
 
     <div id="fatal-banner">
