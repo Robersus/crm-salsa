@@ -542,6 +542,8 @@
       </div>
     </div>
 
+    <div id="recordatorios-panel" style="display:none;"></div>
+
     <div class="panel">
       <div class="panel-header">
         <h2>Listado de alumnos</h2>
@@ -617,6 +619,19 @@
         <div class="field">
           <label>Fecha de inscripción</label>
           <input class="input" type="date" id="f-fecha">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Plan de pago</label>
+          <select class="input" id="f-periodo">
+            <option value="1_semana">1 semana</option>
+            <option value="4_semanas">4 semanas</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Fecha de último pago</label>
+          <input class="input" type="date" id="f-fecha-pago">
         </div>
       </div>
     </div>
@@ -896,6 +911,7 @@
     alumnos = data || [];
     renderStats();
     renderTable();
+    renderRecordatorios();
   }
 
   function loadScript(src) {
@@ -985,6 +1001,113 @@
     return (name || '?').split(' ').filter(Boolean).slice(0, 2).map(n => n[0].toUpperCase()).join('');
   }
 
+  // ---------- Plan de pago / próximo cobro ----------
+  function parseFechaLocal(str) {
+    if (!str) return null;
+    const [y, m, d] = str.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function sumarDias(fecha, dias) {
+    const r = new Date(fecha);
+    r.setDate(r.getDate() + dias);
+    return r;
+  }
+
+  function esMismaFecha(a, b) {
+    return !!a && !!b && a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+
+  function formatFechaCorta(fecha) {
+    if (!fecha) return '-';
+    return fecha.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function diasPorPeriodo(periodo) {
+    return periodo === '1_semana' ? 7 : 28;
+  }
+
+  function fechaProximoPago(alumno) {
+    const base = parseFechaLocal(alumno.fecha_ultimo_pago);
+    if (!base) return null;
+    return sumarDias(base, diasPorPeriodo(alumno.periodo_pago));
+  }
+
+  function proximoPagoInfo(alumno) {
+    const prox = fechaProximoPago(alumno);
+    if (!prox) return { texto: '-', cls: '' };
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    const manana = sumarDias(hoy, 1);
+    const texto = formatFechaCorta(prox);
+    if (prox < hoy) return { texto: 'Venció ' + texto, cls: 'badge-danger' };
+    if (esMismaFecha(prox, hoy) || esMismaFecha(prox, manana)) return { texto: 'Vence ' + texto, cls: 'badge-warning' };
+    return { texto: texto, cls: 'badge-success' };
+  }
+
+  // ---------- Recordatorio por WhatsApp ----------
+  function formatearTelefonoWhatsapp(telefono) {
+    let limpio = (telefono || '').replace(/\D/g, '');
+    if (!limpio) return null;
+    if (limpio.length === 10) limpio = '52' + limpio; // agrega código de México si falta
+    return limpio;
+  }
+
+  function enviarRecordatorioWhatsapp(id) {
+    const a = alumnos.find(x => x.id === id);
+    if (!a) return;
+    const numero = formatearTelefonoWhatsapp(a.telefono);
+    if (!numero) { toast('Este alumno no tiene teléfono registrado', 'error'); return; }
+    const fecha = formatFechaCorta(fechaProximoPago(a));
+    const mensaje = `Hola ${a.nombre_completo || ''} 👋, te escribimos de Alumnos Fortaleza para recordarte que tu pago vence mañana (${fecha}). ¡Gracias por seguir bailando con nosotros! 💃🕺`;
+    window.open('https://wa.me/' + numero + '?text=' + encodeURIComponent(mensaje), '_blank');
+  }
+
+  function renderRecordatorios() {
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    const manana = sumarDias(hoy, 1);
+    const pendientes = alumnos.filter(a => esMismaFecha(fechaProximoPago(a), manana));
+
+    const panel = document.getElementById('recordatorios-panel');
+    if (pendientes.length === 0) {
+      panel.style.display = 'none';
+      panel.innerHTML = '';
+      return;
+    }
+    panel.style.display = 'block';
+    panel.innerHTML = `
+      <div class="panel" style="border-color: var(--warning);">
+        <div class="panel-header">
+          <h2>🔔 Recordatorios de pago — vencen mañana (${pendientes.length})</h2>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr><th>Alumno</th><th>Teléfono</th><th>Próximo pago</th><th></th></tr>
+            </thead>
+            <tbody>
+              ${pendientes.map(a => `
+                <tr>
+                  <td>
+                    <div class="student-name">
+                      <div class="avatar">${initials(a.nombre_completo)}</div>
+                      ${a.nombre_completo || '-'}
+                    </div>
+                  </td>
+                  <td>${a.telefono || '-'}</td>
+                  <td>${formatFechaCorta(fechaProximoPago(a))}</td>
+                  <td>
+                    <button class="btn btn-secondary" onclick="enviarRecordatorioWhatsapp('${a.id}')">📲 Enviar recordatorio</button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
   function tablaAlumnos(lista) {
     return `
       <div class="table-scroll">
@@ -996,11 +1119,14 @@
               <th>Contacto</th>
               <th>Inscripción</th>
               <th>Pago</th>
+              <th>Próximo pago</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            ${lista.map(a => `
+            ${lista.map(a => {
+              const prox = proximoPagoInfo(a);
+              return `
               <tr>
                 <td>
                   <div class="student-name">
@@ -1015,6 +1141,7 @@
                 </td>
                 <td>${a.fecha_inscripcion || '-'}</td>
                 <td>${estadoBadge(a.estado_pago)}</td>
+                <td>${prox.cls ? `<span class="badge ${prox.cls}">${prox.texto}</span>` : prox.texto}</td>
                 <td>
                   <div class="row-actions">
                     <button class="icon-btn" onclick="editAlumno('${a.id}')" title="Editar">✏️</button>
@@ -1022,7 +1149,8 @@
                   </div>
                 </td>
               </tr>
-            `).join('')}
+            `;
+            }).join('')}
           </tbody>
         </table>
       </div>
@@ -1089,6 +1217,8 @@
     document.getElementById('f-nivel').value = alumno ? (alumno.nivel || 'Principiante') : 'Principiante';
     document.getElementById('f-estado').value = alumno ? alumno.estado_pago : 'al_corriente';
     document.getElementById('f-fecha').value = alumno ? alumno.fecha_inscripcion : new Date().toISOString().slice(0, 10);
+    document.getElementById('f-periodo').value = alumno ? (alumno.periodo_pago || '4_semanas') : '4_semanas';
+    document.getElementById('f-fecha-pago').value = alumno ? (alumno.fecha_ultimo_pago || new Date().toISOString().slice(0, 10)) : new Date().toISOString().slice(0, 10);
     document.getElementById('modal-overlay').classList.add('open');
   }
 
@@ -1117,6 +1247,8 @@
       nivel: document.getElementById('f-nivel').value,
       estado_pago: document.getElementById('f-estado').value,
       fecha_inscripcion: document.getElementById('f-fecha').value || null,
+      periodo_pago: document.getElementById('f-periodo').value,
+      fecha_ultimo_pago: document.getElementById('f-fecha-pago').value || new Date().toISOString().slice(0, 10),
     };
 
     let error;
