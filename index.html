@@ -158,6 +158,29 @@
   [data-theme="dark"] .switch::after { left: 20px; }
   [data-theme="dark"] .switch { background: var(--accent); }
 
+  .auth-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: var(--bg-subtle);
+    border-radius: 12px;
+    padding: 8px 10px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .auth-status span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .auth-status button {
+    border: none;
+    background: none;
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 4px 6px;
+  }
+
   .conn-status {
     font-size: 12px;
     display: flex;
@@ -463,6 +486,10 @@
         <span id="theme-label">☀️ Modo claro</span>
         <div class="switch" id="theme-switch" onclick="toggleTheme()"></div>
       </div>
+      <div class="auth-status" id="auth-status">
+        <span id="auth-text">👤 Invitado</span>
+        <button id="auth-btn" onclick="openLoginModal()">Iniciar sesión</button>
+      </div>
       <div class="conn-status">
         <span class="dot" id="conn-dot"></span>
         <span id="conn-text">Conectando a Supabase…</span>
@@ -596,6 +623,30 @@
   </div>
 </div>
 
+<!-- LOGIN MODAL -->
+<div class="modal-overlay" id="login-modal-overlay">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-header">
+      <h3>Iniciar sesión</h3>
+      <button class="close-x" onclick="closeLoginModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Correo</label>
+        <input class="input" id="login-email" type="email" placeholder="tucorreo@ejemplo.com">
+      </div>
+      <div class="field">
+        <label>Contraseña</label>
+        <input class="input" id="login-password" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter') doLogin()">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeLoginModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="doLogin()">Entrar</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -657,12 +708,36 @@
     return window.fetch(url, opciones);
   }
 
-  // Opciones del cliente: sin sesión persistente (evita localStorage,
-  // bloqueado en iframes, y el aviso de "Multiple GoTrueClient instances").
+  // Almacenamiento para la sesión: usa localStorage si está disponible
+  // (para que el login persista al recargar) y cae a memoria si el
+  // entorno lo bloquea (p. ej. iframes en about:srcdoc).
+  function creaAlmacenSesion() {
+    try {
+      const testKey = '__sb_test__';
+      window.localStorage.setItem(testKey, '1');
+      window.localStorage.removeItem(testKey);
+      return window.localStorage;
+    } catch (_) {
+      const mem = {};
+      return {
+        getItem: (k) => (k in mem ? mem[k] : null),
+        setItem: (k, v) => { mem[k] = v; },
+        removeItem: (k) => { delete mem[k]; }
+      };
+    }
+  }
+
   const OPCIONES_CLIENTE = {
     global: { fetch: fetchSeguro },
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false,
+      storage: creaAlmacenSesion()
+    }
   };
+
+  let currentUser = null;
 
   // ---------- Theme ----------
   let themePref = 'light';
@@ -732,6 +807,54 @@
   function setConnStatus(ok, text) {
     document.getElementById('conn-dot').className = 'dot ' + (ok ? 'ok' : 'err');
     document.getElementById('conn-text').textContent = text;
+  }
+
+  // ---------- Auth ----------
+  function updateAuthUI() {
+    const text = document.getElementById('auth-text');
+    const btn = document.getElementById('auth-btn');
+    if (currentUser) {
+      text.textContent = '🔓 ' + currentUser.email;
+      btn.textContent = 'Cerrar sesión';
+      btn.onclick = doLogout;
+    } else {
+      text.textContent = '👤 Invitado';
+      btn.textContent = 'Iniciar sesión';
+      btn.onclick = openLoginModal;
+    }
+  }
+
+  function openLoginModal() {
+    document.getElementById('login-password').value = '';
+    document.getElementById('login-modal-overlay').classList.add('open');
+  }
+
+  function closeLoginModal() {
+    document.getElementById('login-modal-overlay').classList.remove('open');
+  }
+
+  async function doLogin() {
+    if (!sb) { toast('Sin conexión a la base de datos', 'error'); return; }
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    if (!email || !password) { toast('Ingresa correo y contraseña', 'error'); return; }
+
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) {
+      toast('No se pudo iniciar sesión: ' + errText(error), 'error');
+      return;
+    }
+    currentUser = data.user;
+    updateAuthUI();
+    closeLoginModal();
+    toast('Sesión iniciada', 'success');
+  }
+
+  async function doLogout() {
+    if (sb) await sb.auth.signOut();
+    currentUser = null;
+    updateAuthUI();
+    toast('Sesión cerrada', 'success');
   }
 
   // ---------- Load data ----------
@@ -814,6 +937,15 @@
         sb = window.supabase.createClient(SUPABASE_URL, key, OPCIONES_CLIENTE);
         await loadHorarios();
         await loadAlumnos();
+
+        const { data: sessionData } = await sb.auth.getSession();
+        currentUser = sessionData.session ? sessionData.session.user : null;
+        updateAuthUI();
+        sb.auth.onAuthStateChange((_event, session) => {
+          currentUser = session ? session.user : null;
+          updateAuthUI();
+        });
+
         setConnStatus(true, 'Conectado a Supabase');
         return;
       } catch (e) {
@@ -992,7 +1124,8 @@
 
     if (error) {
       if (esErrorDePermisos(error)) {
-        toast('Editar alumnos requiere iniciar sesión. Puedes dar de alta, pero no modificar.', 'error');
+        toast('Necesitas iniciar sesión para editar alumnos.', 'error');
+        openLoginModal();
       } else {
         toast('Error al guardar: ' + errText(error), 'error');
       }
@@ -1009,7 +1142,8 @@
     const { error } = await sb.from('alumnos').delete().eq('id', id);
     if (error) {
       if (esErrorDePermisos(error)) {
-        toast('Eliminar alumnos requiere iniciar sesión (protección activada).', 'error');
+        toast('Necesitas iniciar sesión para eliminar alumnos.', 'error');
+        openLoginModal();
       } else {
         toast('Error al eliminar: ' + errText(error), 'error');
       }
@@ -1018,7 +1152,8 @@
     // Confirmar que sí se borró: si la política lo impide, no lanza error pero no borra.
     await loadAlumnos();
     if (alumnos.some(a => a.id === id)) {
-      toast('No se pudo eliminar: se requiere iniciar sesión.', 'error');
+      toast('No se pudo eliminar: necesitas iniciar sesión.', 'error');
+      openLoginModal();
       return;
     }
     toast('Alumno eliminado', 'success');
@@ -1026,6 +1161,10 @@
 
   document.getElementById('modal-overlay').addEventListener('click', (e) => {
     if (e.target.id === 'modal-overlay') closeModal();
+  });
+
+  document.getElementById('login-modal-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'login-modal-overlay') closeLoginModal();
   });
 
   initApp();
