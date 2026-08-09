@@ -193,6 +193,44 @@
   .dot.ok { background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
   .dot.err { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
 
+  /* ---------- Pantalla de acceso (a pantalla completa) ---------- */
+  .auth-gate {
+    position: fixed; inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    z-index: 500;
+    padding: 20px;
+  }
+  .auth-gate-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    width: 100%;
+    max-width: 420px;
+    padding: 36px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .auth-gate-card h2 { margin: 0 0 6px; font-size: 20px; text-align: center; }
+  .auth-gate-subtitle { margin: 0; color: var(--text-muted); font-size: 14px; text-align: center; }
+  .auth-gate-status {
+    font-size: 12px; color: var(--text-muted);
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .auth-gate-error {
+    background: var(--danger-soft);
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
   /* ---------- Main ---------- */
   .main { padding: 28px 34px; overflow-x: hidden; }
 
@@ -207,8 +245,6 @@
 
   .topbar h1 { margin: 0 0 4px; font-size: 24px; }
   .topbar p { margin: 0; color: var(--text-muted); font-size: 14px; }
-
-  .topbar-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
   .btn {
     border: none;
@@ -435,17 +471,22 @@
   #toast.error { border-color: var(--danger); color: var(--danger); }
   #toast.success { border-color: var(--success); color: var(--success); }
 
-  /* ---------- Banner de error ---------- */
+  /* ---------- Banner de error (siempre por encima, incluso sobre el login) ---------- */
   #fatal-banner {
     display: none;
+    position: fixed;
+    top: 16px; left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 32px);
+    max-width: 640px;
     background: var(--danger-soft);
     border: 1px solid var(--danger);
     color: var(--danger);
     border-radius: 12px;
     padding: 14px 18px;
-    margin-bottom: 20px;
     font-size: 14px;
     line-height: 1.5;
+    z-index: 600;
   }
   #fatal-banner.show { display: block; }
   #fatal-banner strong { display: block; margin-bottom: 4px; }
@@ -464,7 +505,46 @@
 </style>
 </head>
 <body data-theme="light">
-<div class="app">
+
+<div id="fatal-banner">
+  <strong>No se pudo cargar la librería de Supabase.</strong>
+  Revisa tu conexión a internet y recarga la página. Si estás en una red con
+  restricciones (oficina o escuela), puede estar bloqueando los CDN.
+</div>
+
+<!-- PANTALLA DE ACCESO -->
+<div class="auth-gate" id="auth-gate">
+  <div class="auth-gate-card">
+    <div class="brand" style="justify-content:center;">
+      <div class="brand-logo">💃</div>
+      <div class="brand-text">
+        <strong>Alumnos Fortaleza</strong>
+        <span>Gestión de alumnos</span>
+      </div>
+    </div>
+    <div>
+      <h2>Inicia sesión para continuar</h2>
+      <p class="auth-gate-subtitle">Solo el personal autorizado puede ver y administrar a los alumnos.</p>
+    </div>
+    <div class="auth-gate-error" id="login-error" style="display:none;"></div>
+    <div class="field">
+      <label>Correo</label>
+      <input class="input" id="login-email" type="email" placeholder="tucorreo@ejemplo.com" onkeydown="if(event.key==='Enter') doLogin()">
+    </div>
+    <div class="field">
+      <label>Contraseña</label>
+      <input class="input" id="login-password" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter') doLogin()">
+    </div>
+    <button class="btn btn-primary" id="login-submit-btn" style="justify-content:center;" onclick="doLogin()">Entrar</button>
+    <div class="auth-gate-status">
+      <span class="dot conn-dot"></span>
+      <span class="conn-text">Conectando a Supabase…</span>
+    </div>
+  </div>
+</div>
+
+<!-- APP (oculta hasta iniciar sesión) -->
+<div class="app" id="app-root" style="display:none;">
 
   <!-- SIDEBAR -->
   <aside class="sidebar">
@@ -488,9 +568,13 @@
         <span id="theme-label">☀️ Modo claro</span>
         <div class="switch" id="theme-switch" onclick="toggleTheme()"></div>
       </div>
+      <div class="auth-status" id="auth-status">
+        <span id="auth-text">👤</span>
+        <button onclick="doLogout()">Cerrar sesión</button>
+      </div>
       <div class="conn-status">
-        <span class="dot" id="conn-dot"></span>
-        <span id="conn-text">Conectando a Supabase…</span>
+        <span class="dot conn-dot"></span>
+        <span class="conn-text">Conectando a Supabase…</span>
       </div>
     </div>
   </aside>
@@ -502,21 +586,9 @@
         <h1>Alumnos</h1>
         <p>Administra los alumnos organizados por horario de clase.</p>
       </div>
-      <div class="topbar-actions">
-        <div class="auth-status" id="auth-status">
-          <span id="auth-text">👤 Invitado</span>
-          <button id="auth-btn" onclick="openLoginModal()">Iniciar sesión</button>
-        </div>
-        <button class="btn btn-primary" id="btn-nuevo" onclick="openModal()">
-          <span>+</span> Nuevo alumno
-        </button>
-      </div>
-    </div>
-
-    <div id="fatal-banner">
-      <strong>No se pudo cargar la librería de Supabase.</strong>
-      Revisa tu conexión a internet y recarga la página. Si estás en una red con
-      restricciones (oficina o escuela), puede estar bloqueando los CDN.
+      <button class="btn btn-primary" id="btn-nuevo" onclick="openModal()">
+        <span>+</span> Nuevo alumno
+      </button>
     </div>
 
     <div class="stats-grid">
@@ -638,30 +710,6 @@
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="saveAlumno()">Guardar alumno</button>
-    </div>
-  </div>
-</div>
-
-<!-- LOGIN MODAL -->
-<div class="modal-overlay" id="login-modal-overlay">
-  <div class="modal" style="max-width:380px;">
-    <div class="modal-header">
-      <h3>Iniciar sesión</h3>
-      <button class="close-x" onclick="closeLoginModal()">&times;</button>
-    </div>
-    <div class="modal-body">
-      <div class="field">
-        <label>Correo</label>
-        <input class="input" id="login-email" type="email" placeholder="tucorreo@ejemplo.com">
-      </div>
-      <div class="field">
-        <label>Contraseña</label>
-        <input class="input" id="login-password" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter') doLogin()">
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeLoginModal()">Cancelar</button>
-      <button class="btn btn-primary" onclick="doLogin()">Entrar</button>
     </div>
   </div>
 </div>
@@ -824,55 +872,83 @@
 
   // ---------- Connection status ----------
   function setConnStatus(ok, text) {
-    document.getElementById('conn-dot').className = 'dot ' + (ok ? 'ok' : 'err');
-    document.getElementById('conn-text').textContent = text;
+    document.querySelectorAll('.conn-dot').forEach(el => { el.className = 'dot conn-dot ' + (ok ? 'ok' : 'err'); });
+    document.querySelectorAll('.conn-text').forEach(el => { el.textContent = text; });
   }
 
   // ---------- Auth ----------
+  function showAuthGate() {
+    document.getElementById('app-root').style.display = 'none';
+    document.getElementById('auth-gate').style.display = 'flex';
+  }
+
+  function showApp() {
+    document.getElementById('auth-gate').style.display = 'none';
+    document.getElementById('app-root').style.display = 'grid';
+  }
+
   function updateAuthUI() {
     const text = document.getElementById('auth-text');
-    const btn = document.getElementById('auth-btn');
-    if (currentUser) {
-      text.textContent = '🔓 ' + currentUser.email;
-      btn.textContent = 'Cerrar sesión';
-      btn.onclick = doLogout;
-    } else {
-      text.textContent = '👤 Invitado';
-      btn.textContent = 'Iniciar sesión';
-      btn.onclick = openLoginModal;
-    }
+    if (text) text.textContent = currentUser ? ('🔓 ' + currentUser.email) : '👤';
   }
 
-  function openLoginModal() {
-    document.getElementById('login-password').value = '';
-    document.getElementById('login-modal-overlay').classList.add('open');
+  function mostrarErrorLogin(msg) {
+    const el = document.getElementById('login-error');
+    if (!msg) { el.style.display = 'none'; el.textContent = ''; return; }
+    el.textContent = msg;
+    el.style.display = 'block';
   }
 
-  function closeLoginModal() {
-    document.getElementById('login-modal-overlay').classList.remove('open');
+  // Se llama cuando el servidor rechaza una acción por falta de sesión
+  // (p. ej. la sesión expiró a mitad de uso): regresa a la pantalla de acceso.
+  function sesionExpirada() {
+    currentUser = null;
+    updateAuthUI();
+    showAuthGate();
   }
 
   async function doLogin() {
-    if (!sb) { toast('Sin conexión a la base de datos', 'error'); return; }
+    mostrarErrorLogin('');
+    if (!sb) { mostrarErrorLogin('Sin conexión a la base de datos. Recarga la página.'); return; }
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
-    if (!email || !password) { toast('Ingresa correo y contraseña', 'error'); return; }
+    if (!email || !password) { mostrarErrorLogin('Ingresa correo y contraseña'); return; }
 
+    const btn = document.getElementById('login-submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Entrando…';
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    btn.disabled = false;
+    btn.textContent = 'Entrar';
+
     if (error) {
-      toast('No se pudo iniciar sesión: ' + errText(error), 'error');
+      mostrarErrorLogin('No se pudo iniciar sesión: ' + errText(error));
       return;
     }
     currentUser = data.user;
+    document.getElementById('login-password').value = '';
+    await afterLogin();
+  }
+
+  async function afterLogin() {
     updateAuthUI();
-    closeLoginModal();
-    toast('Sesión iniciada', 'success');
+    showApp();
+    try {
+      await loadHorarios();
+      await loadAlumnos();
+      setConnStatus(true, 'Conectado a Supabase');
+    } catch (e) {
+      showFatal('No se pudieron cargar los datos.', errText(e));
+    }
   }
 
   async function doLogout() {
     if (sb) await sb.auth.signOut();
     currentUser = null;
+    alumnos = [];
+    horarios = [];
     updateAuthUI();
+    showAuthGate();
     toast('Sesión cerrada', 'success');
   }
 
@@ -955,8 +1031,7 @@
     for (const key of [SUPABASE_ANON_KEY, SUPABASE_KEY_FALLBACK]) {
       try {
         sb = window.supabase.createClient(SUPABASE_URL, key, OPCIONES_CLIENTE);
-        await loadHorarios();
-        await loadAlumnos();
+        await loadHorarios(); // solo valida la conexión; no requiere sesión
 
         const { data: sessionData } = await sb.auth.getSession();
         currentUser = sessionData.session ? sessionData.session.user : null;
@@ -964,9 +1039,15 @@
         sb.auth.onAuthStateChange((_event, session) => {
           currentUser = session ? session.user : null;
           updateAuthUI();
+          if (!currentUser) showAuthGate();
         });
 
-        setConnStatus(true, 'Conectado a Supabase');
+        if (currentUser) {
+          await afterLogin();
+        } else {
+          showAuthGate();
+          setConnStatus(true, 'Conectado — inicia sesión');
+        }
         return;
       } catch (e) {
         ultimoError = e;
@@ -1260,8 +1341,8 @@
 
     if (error) {
       if (esErrorDePermisos(error)) {
-        toast('Necesitas iniciar sesión para editar alumnos.', 'error');
-        openLoginModal();
+        toast('Tu sesión expiró. Inicia sesión de nuevo.', 'error');
+        sesionExpirada();
       } else {
         toast('Error al guardar: ' + errText(error), 'error');
       }
@@ -1278,8 +1359,8 @@
     const { error } = await sb.from('alumnos').delete().eq('id', id);
     if (error) {
       if (esErrorDePermisos(error)) {
-        toast('Necesitas iniciar sesión para eliminar alumnos.', 'error');
-        openLoginModal();
+        toast('Tu sesión expiró. Inicia sesión de nuevo.', 'error');
+        sesionExpirada();
       } else {
         toast('Error al eliminar: ' + errText(error), 'error');
       }
@@ -1288,8 +1369,8 @@
     // Confirmar que sí se borró: si la política lo impide, no lanza error pero no borra.
     await loadAlumnos();
     if (alumnos.some(a => a.id === id)) {
-      toast('No se pudo eliminar: necesitas iniciar sesión.', 'error');
-      openLoginModal();
+      toast('No se pudo eliminar: tu sesión expiró.', 'error');
+      sesionExpirada();
       return;
     }
     toast('Alumno eliminado', 'success');
@@ -1297,10 +1378,6 @@
 
   document.getElementById('modal-overlay').addEventListener('click', (e) => {
     if (e.target.id === 'modal-overlay') closeModal();
-  });
-
-  document.getElementById('login-modal-overlay').addEventListener('click', (e) => {
-    if (e.target.id === 'login-modal-overlay') closeLoginModal();
   });
 
   initApp();
